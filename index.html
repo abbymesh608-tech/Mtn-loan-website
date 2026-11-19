@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loan Application Portal</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f1f4f8;
+    margin: 0;
+    padding: 30px 15px;
+}
+
+.container {
+    max-width: 450px;
+    background: white;
+    margin: auto;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px #ccc;
+}
+
+h2 {
+    text-align: center;
+    color: #087443;
+}
+
+p {
+    text-align: center;
+    color: #555;
+}
+
+input, textarea, button {
+    width: 100%;
+    padding: 13px;
+    margin: 10px 0;
+    box-sizing: border-box;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+button {
+    background: #087443;
+    color: white;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}
+
+#message {
+    text-align: center;
+    font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Loan Application</h2>
+<p>Complete your application below.</p>
+
+<div id="firstForm">
+
+<form id="applicationForm">
+
+<input name="name" placeholder="Full Name" required>
+
+<input name="phone" type="tel"
+placeholder="Phone Number" required>
+
+<input name="amount" type="number"
+placeholder="Loan Amount (KSh)" min="1" required>
+
+<button type="submit">SUBMIT APPLICATION</button>
+
+</form>
+</div>
+
+<div id="waiting" class="hidden">
+<h3>Application Received</h3>
+<p>Your application is being reviewed.</p>
+<p>Reference: <span id="reference"></span></p>
+<p>Please return to this page to check your application status.</p>
+<button onclick="checkStatus()">CHECK STATUS</button>
+</div>
+
+<div id="secondForm" class="hidden">
+
+<h3>Additional Information</h3>
+
+<p>Your application has passed the initial review.</p>
+
+<form id="detailsForm">
+
+<textarea name="purpose"
+placeholder="Why do you need this loan?"
+required></textarea>
+
+<textarea name="usage"
+placeholder="What will you use the money for?"
+required></textarea>
+
+<textarea name="repayment"
+placeholder="Explain your repayment plan"
+required></textarea>
+
+<button type="submit">SEND DETAILS</button>
+
+</form>
+</div>
+
+<div id="message"></div>
+
+</div>
+
+<script>
+let reference = localStorage.getItem("loanReference");
+
+const message = document.getElementById("message");
+
+async function submitApplication(event) {
+    event.preventDefault();
+
+    const data = Object.fromEntries(
+        new FormData(event.target)
+    );
+
+    try {
+        const response = await fetch("/api/applications", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) throw new Error(result.error);
+
+        reference = result.reference;
+        localStorage.setItem("loanReference", reference);
+
+        document.getElementById("firstForm").classList.add("hidden");
+        document.getElementById("waiting").classList.remove("hidden");
+        document.getElementById("reference").textContent = reference;
+
+        message.textContent = "Application submitted successfully.";
+
+    } catch (error) {
+        message.textContent = error.message;
+    }
+}
+
+async function checkStatus() {
+    if (!reference) return;
+
+    try {
+        const response = await fetch(
+            "/api/applications/" + encodeURIComponent(reference)
+        );
+
+        const result = await response.json();
+
+        if (result.status === "approved") {
+            document.getElementById("waiting").classList.add("hidden");
+            document.getElementById("secondForm").classList.remove("hidden");
+            message.textContent = "Please complete your additional details.";
+        }
+
+        if (result.status === "rejected") {
+            message.textContent = "Your application was not accepted.";
+        }
+
+    } catch (error) {
+        message.textContent = "Unable to check status. Try again.";
+    }
+}
+
+async function submitDetails(event) {
+    event.preventDefault();
+
+    const data = Object.fromEntries(
+        new FormData(event.target)
+    );
+
+    try {
+        const response = await fetch(
+            "/api/applications/" + encodeURIComponent(reference) + "/details",
+            {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(data)
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) throw new Error(result.error);
+
+        document.getElementById("secondForm").classList.add("hidden");
+        message.textContent = "Your additional details have been submitted.";
+
+    } catch (error) {
+        message.textContent = error.message;
+    }
+}
+
+document.getElementById("applicationForm")
+.addEventListener("submit", submitApplication);
+
+document.getElementById("detailsForm")
+.addEventListener("submit", submitDetails);
+
+if (reference) {
+    document.getElementById("firstForm").classList.add("hidden");
+    document.getElementById("waiting").classList.remove("hidden");
+    document.getElementById("reference").textContent = reference;
+}
+</script>
+
+</body>
+</html>
